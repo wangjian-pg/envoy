@@ -108,13 +108,15 @@ public:
 
   RouteConfigUpdatePtr& routeConfigUpdate() { return config_update_info_; }
   void updateOnDemand(const std::string& aliases);
+  // TODO(wangjian.pg 20230706), this method is NOT need since we refactor the VHDS logic, remove it.
   void maybeCreateInitManager(const std::string& version_info,
                               std::unique_ptr<Init::ManagerImpl>& init_manager,
                               std::unique_ptr<Cleanup>& resume_rds);
 
 private:
-  void beforeProviderUpdate(std::unique_ptr<Init::ManagerImpl>& noop_init_manager,
-                            std::unique_ptr<Cleanup>& resume_rds) override;
+  //void beforeProviderUpdate(std::unique_ptr<Init::ManagerImpl>& noop_init_manager,
+                            //std::unique_ptr<Cleanup>& resume_rds) override;
+  void beforeProviderUpdate() override;
   void afterProviderUpdate() override;
 
   ABSL_MUST_USE_RESULT Common::CallbackHandlePtr addUpdateCallback(std::function<void()> callback) {

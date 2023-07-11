@@ -59,6 +59,7 @@ bool RouteConfigUpdateReceiverImpl::onRdsUpdate(const Protobuf::Message& rc,
   new_route_config->CopyFrom(rc);
   const uint64_t new_vhds_config_hash =
       new_route_config->has_vhds() ? MessageUtil::hash(new_route_config->vhds()) : 0ul;
+  vhds_configuration_changed_ = new_vhds_config_hash != last_vhds_config_hash_;
   if (new_route_config->has_vhds()) {
     // When using VHDS, stash away RDS vhosts, so that they can be merged with VHDS vhosts in
     // onVhdsUpdate.
@@ -70,6 +71,16 @@ bool RouteConfigUpdateReceiverImpl::onRdsUpdate(const Protobuf::Message& rc,
     for (const auto& vhost : new_route_config->virtual_hosts()) {
       rds_virtual_hosts_->emplace(vhost.name(), vhost);
     }
+    // Clear all resolved hosts if VHDS configuration changed according to the
+    // documention:
+    // When a route configuration entry is updated, if the vhds field has changed,
+    // the virtual host table for that route configuration is cleared,
+    // which will require that all virtual hosts be sent again.
+    // https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/vhds
+    // FIXME(wangjian.pg 20230710), drive into it.
+    if (vhds_configuration_changed_ && !vhds_virtual_hosts_->empty()){
+      vhds_virtual_hosts_->clear();
+    }
     if (vhds_virtual_hosts_ != nullptr && !vhds_virtual_hosts_->empty()) {
       // If there are vhosts supplied by VHDS, merge them with RDS vhosts.
       rebuildRouteConfigVirtualHosts(*rds_virtual_hosts_, *vhds_virtual_hosts_, *new_route_config);
@@ -77,7 +88,6 @@ bool RouteConfigUpdateReceiverImpl::onRdsUpdate(const Protobuf::Message& rc,
   }
   base_.updateConfig(std::move(new_route_config));
   base_.updateHash(new_hash);
-  vhds_configuration_changed_ = new_vhds_config_hash != last_vhds_config_hash_;
   last_vhds_config_hash_ = new_vhds_config_hash;
 
   base_.onUpdateCommon(version_info);

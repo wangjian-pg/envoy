@@ -46,6 +46,7 @@ void GrpcSubscriptionImpl::start(const absl::flat_hash_set<std::string>& resourc
 
   // ADS initial request batching relies on the users of the GrpcMux *not* calling start on it,
   // whereas non-ADS xDS users must call it themselves.
+  // TODO(wangjian.pg 20230710) checkout this logic...
   if (!is_aggregated_) {
     grpc_mux_->start();
   }

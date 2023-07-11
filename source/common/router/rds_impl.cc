@@ -88,20 +88,23 @@ RdsRouteConfigSubscription::RdsRouteConfigSubscription(
 
 RdsRouteConfigSubscription::~RdsRouteConfigSubscription() { config_update_info_.release(); }
 
-void RdsRouteConfigSubscription::beforeProviderUpdate(
-    std::unique_ptr<Init::ManagerImpl>& noop_init_manager, std::unique_ptr<Cleanup>& resume_rds) {
+void RdsRouteConfigSubscription::beforeProviderUpdate() {
   if (config_update_info_->protobufConfigurationCast().has_vhds() &&
       config_update_info_->vhdsConfigurationChanged()) {
     ENVOY_LOG(debug,
               "rds: vhds configuration present/changed, (re)starting vhds: config_name={} hash={}",
               route_config_name_, routeConfigUpdate()->configHash());
     ASSERT(config_update_info_->configInfo().has_value());
-    maybeCreateInitManager(routeConfigUpdate()->configInfo().value().version_, noop_init_manager,
-                           resume_rds);
+    //maybeCreateInitManager(routeConfigUpdate()->configInfo().value().version_, noop_init_manager,
+                           //resume_rds);
+    //TODO(wangjian.pg 2023.07.10) do we need to release the original vhds_subscription_>
+    // if (!vhds_subscription_){
+    // vhds_subscription_.release();
+    //}
     vhds_subscription_ = std::make_unique<VhdsSubscription>(config_update_info_, factory_context_,
                                                             stat_prefix_, route_config_provider_);
-    vhds_subscription_->registerInitTargetWithInitManager(
-        noop_init_manager == nullptr ? local_init_manager_ : *noop_init_manager);
+    //vhds_subscription_->registerInitTargetWithInitManager(
+        //noop_init_manager == nullptr ? local_init_manager_ : *noop_init_manager);
   }
 }
 
@@ -166,6 +169,7 @@ void RdsRouteConfigProviderImpl::onConfigUpdate() {
     return;
   }
 
+  // OK, here is the VHDS implemention...
   const auto config =
       std::static_pointer_cast<const ConfigImpl>(config_update_info_->parsedConfiguration());
   // Notifies connections that RouteConfiguration update has been propagated.
@@ -214,6 +218,7 @@ void RdsRouteConfigProviderImpl::requestVirtualHostsUpdate(
                                                 route_config_updated_cb]() -> void {
     if (maybe_still_alive.lock()) {
       subscription().updateOnDemand(alias);
+      // TODO(wangjian.pg set a timeout for the VHDS request and callbacks)
       config_update_callbacks_.push_back({alias, thread_local_dispatcher, route_config_updated_cb});
     }
   });

@@ -37,7 +37,7 @@ public:
    * @param optional_http_filters a set of optional http filter names.
    * @param factory_context is the context to use for the route config provider.
    * @param stat_prefix supplies the stat_prefix to use for the provider stats.
-   * @param init_manager the Init::Manager used to coordinate initialization of a the underlying RDS
+   * @param init_manager the Init::Manager used to coordinate initialization of the underlying RDS
    * subscription.
    */
   virtual RouteConfigProviderSharedPtr createRdsRouteConfigProvider(

@@ -30,32 +30,40 @@ VhdsSubscription::VhdsSubscription(RouteConfigUpdatePtr& config_update_info,
       scope_(factory_context.scope().createScope(
           stat_prefix + "vhds." + config_update_info_->protobufConfigurationCast().name() + ".")),
       stats_({ALL_VHDS_STATS(POOL_COUNTER(*scope_))}),
-      init_target_(fmt::format("VhdsConfigSubscription {}",
-                               config_update_info_->protobufConfigurationCast().name()),
-                   [this]() {
-                     subscription_->start(
-                         {config_update_info_->protobufConfigurationCast().name()});
-                   }),
-      route_config_provider_(route_config_provider) {
+      route_config_provider_(route_config_provider){
+  // TODO(wangjian.pg 20230706), makes VHDS works on ADS stream.
   const auto& config_source = config_update_info_->protobufConfigurationCast()
                                   .vhds()
                                   .config_source()
                                   .api_config_source()
                                   .api_type();
   if (config_source != envoy::config::core::v3::ApiConfigSource::DELTA_GRPC) {
-    throw EnvoyException("vhds: only 'DELTA_GRPC' is supported as an api_type.");
+    //throw EnvoyException("vhds: only 'DELTA_GRPC' is supported as an api_type.");
   }
   const auto resource_name = getResourceName();
-  Envoy::Config::SubscriptionOptions options;
-  options.use_namespace_matching_ = true;
+  //Envoy::Config::SubscriptionOptions options;
+  //options.use_namespace_matching_ = true;
   subscription_ =
       factory_context.clusterManager().subscriptionFactory().subscriptionFromConfigSource(
           config_update_info_->protobufConfigurationCast().vhds().config_source(),
-          Grpc::Common::typeUrl(resource_name), *scope_, *this, resource_decoder_, options);
+          Grpc::Common::typeUrl(resource_name), *scope_,
+          *this, resource_decoder_, {});
 }
 
 void VhdsSubscription::updateOnDemand(const std::string& with_route_config_name_prefix) {
-  subscription_->requestOnDemandUpdate({with_route_config_name_prefix});
+  // TODO(wangjian.pg 20230710) if domain names already exits, we do not need to updateResourceInterest.
+  on_demand_domains_.insert(with_route_config_name_prefix);
+  if (!started_){
+    subscription_->start({with_route_config_name_prefix});
+    // TODO(wangjian.pg 20230710) insert or emplace
+    started_ = true;
+    return;
+  }
+  subscription_->updateResourceInterest(on_demand_domains_);
+  // TODO, we may not need the requestOnDemandUpdate interface
+  // keep all the resource names we are interestd in and just call the method
+  // subscription_->updateResourceInterested.
+  // subscription_->requestOnDemandUpdate({with_route_config_name_prefix});
 }
 
 void VhdsSubscription::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason reason,
@@ -63,7 +71,9 @@ void VhdsSubscription::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureRe
   ASSERT(Envoy::Config::ConfigUpdateFailureReason::ConnectionFailure != reason);
   // We need to allow server startup to continue, even if we have a bad
   // config.
-  init_target_.ready();
+  // init_target_.ready();
+  // TODO(wangjian.pg) what would happend if on-demand request failed because of timeout or others reasons?
+  // FIXME(wangjian.pg 20230707), May trigger all pending callbacks to fail?
 }
 
 void VhdsSubscription::onConfigUpdate(
@@ -95,7 +105,7 @@ void VhdsSubscription::onConfigUpdate(
     }
   }
 
-  init_target_.ready();
+  //init_target_.ready();
 }
 
 } // namespace Router

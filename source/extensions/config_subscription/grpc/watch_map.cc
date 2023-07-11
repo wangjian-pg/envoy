@@ -11,16 +11,6 @@
 namespace Envoy {
 namespace Config {
 
-namespace {
-// Returns the namespace part (if there's any) in the resource name.
-std::string namespaceFromName(const std::string& resource_name) {
-  // We simply remove the last / component. E.g. www.foo.com/bar becomes www.foo.com.
-  const auto pos = resource_name.find_last_of('/');
-  // We are not interested in the "/" character in the namespace
-  return pos == std::string::npos ? "" : resource_name.substr(0, pos);
-}
-} // namespace
-
 Watch* WatchMap::addWatch(SubscriptionCallbacks& callbacks,
                           OpaqueResourceDecoder& resource_decoder) {
   auto watch = std::make_unique<Watch>(callbacks, resource_decoder);
@@ -69,17 +59,14 @@ WatchMap::updateWatchInterest(Watch* watch,
 }
 
 absl::flat_hash_set<Watch*> WatchMap::watchesInterestedIn(const std::string& resource_name) {
-  absl::flat_hash_set<Watch*> ret;
-  if (!use_namespace_matching_) {
-    ret = wildcard_watches_;
-  }
+  auto ret = wildcard_watches_;
   const bool is_xdstp = XdsResourceIdentifier::hasXdsTpScheme(resource_name);
   xds::core::v3::ResourceName xdstp_resource;
   XdsResourceIdentifier::EncodeOptions encode_options;
   encode_options.sort_context_params_ = true;
   // First look for an exact match. If this is xdstp:// we need to normalize context parameters.
   if (is_xdstp) {
-    // TODO(htuch): factor this (and stuff in namespaceFromName) into a dedicated library.
+    // TODO(htuch): factor this into a dedicated library.
     // This is not very efficient; it is possible to canonicalize etc. much faster with raw string
     // operations, but this implementation provides a reference for later optimization while we
     // adopt xdstp://.
@@ -90,10 +77,7 @@ absl::flat_hash_set<Watch*> WatchMap::watchesInterestedIn(const std::string& res
   // If that fails, consider namespace/glob matching. This is the slow path for xdstp:// and should
   // only happen for glob collections. TODO(htuch): It should be possible to have much more
   // efficient matchers here.
-  if (watches_interested == watch_interest_.end()) {
-    if (use_namespace_matching_) {
-      watches_interested = watch_interest_.find(namespaceFromName(resource_name));
-    } else if (is_xdstp) {
+  if (watches_interested == watch_interest_.end() && is_xdstp) {
       // Replace resource name component with glob for purpose of matching.
       const auto pos = xdstp_resource.id().find_last_of('/');
       xdstp_resource.set_id(pos == std::string::npos ? "*"
@@ -101,7 +85,6 @@ absl::flat_hash_set<Watch*> WatchMap::watchesInterestedIn(const std::string& res
       const std::string encoded_name =
           XdsResourceIdentifier::encodeUrn(xdstp_resource, encode_options);
       watches_interested = watch_interest_.find(encoded_name);
-    }
   }
   if (watches_interested != watch_interest_.end()) {
     for (const auto& watch : watches_interested->second) {
@@ -238,7 +221,8 @@ void WatchMap::onConfigUpdate(
   }
   // notify empty update
   if (added_resources.empty() && removed_resources.empty()) {
-    for (auto& cur_watch : wildcard_watches_) {
+    // FIXED the VHDS case... try to make a PR to community. (wangjian.pg 2023.06.30)
+    for (auto& cur_watch : watches_){
       cur_watch->callbacks_.onConfigUpdate({}, {}, system_version_info);
     }
   }

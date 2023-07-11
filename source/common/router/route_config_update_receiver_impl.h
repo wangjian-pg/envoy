@@ -48,7 +48,8 @@ public:
   bool removeVhosts(VirtualHostMap& vhosts,
                     const Protobuf::RepeatedPtrField<std::string>& removed_vhost_names);
   bool updateVhosts(VirtualHostMap& vhosts, const VirtualHostRefVector& added_vhosts);
-  bool onDemandFetchFailed(const envoy::service::discovery::v3::Resource& resource) const;
+  // FIXME(wangjian.pg 20230707) onDemandFetchFailed, declared but not used.
+  // bool onDemandFetchFailed(const envoy::service::discovery::v3::Resource& resource) const;
 
   // Router::RouteConfigUpdateReceiver
   bool onRdsUpdate(const Protobuf::Message& rc, const std::string& version_info) override;

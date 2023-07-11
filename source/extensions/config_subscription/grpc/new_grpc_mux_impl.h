@@ -84,10 +84,10 @@ public:
 
   struct SubscriptionStuff {
     SubscriptionStuff(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
-                      const bool use_namespace_matching, Event::Dispatcher& dispatcher,
+                      Event::Dispatcher& dispatcher,
                       CustomConfigValidators& config_validators,
                       XdsConfigTrackerOptRef xds_config_tracker)
-        : watch_map_(use_namespace_matching, type_url, config_validators),
+        : watch_map_(type_url, config_validators),
           sub_state_(type_url, watch_map_, local_info, dispatcher, xds_config_tracker) {}
 
     WatchMap watch_map_;
@@ -142,7 +142,7 @@ private:
                    const SubscriptionOptions& options);
 
   // Adds a subscription for the type_url to the subscriptions map and order list.
-  void addSubscription(const std::string& type_url, bool use_namespace_matching);
+  void addSubscription(const std::string& type_url);
 
   void trySendDiscoveryRequests();
 

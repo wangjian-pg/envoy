@@ -168,7 +168,7 @@ GrpcMuxWatchPtr NewGrpcMuxImpl::addWatch(const std::string& type_url,
   auto entry = subscriptions_.find(type_url);
   if (entry == subscriptions_.end()) {
     // We don't yet have a subscription for type_url! Make one!
-    addSubscription(type_url, options.use_namespace_matching_);
+    addSubscription(type_url);
     return addWatch(type_url, resources, callbacks, resource_decoder, options);
   }
 
@@ -206,14 +206,10 @@ void NewGrpcMuxImpl::updateWatch(const std::string& type_url, Watch* watch,
       effective_resources.insert(resource);
     }
   }
+
   auto added_removed = sub->second->watch_map_.updateWatchInterest(watch, effective_resources);
-  if (options.use_namespace_matching_) {
-    // This is to prevent sending out of requests that contain prefixes instead of resource names
-    sub->second->sub_state_.updateSubscriptionInterest({}, {});
-  } else {
-    sub->second->sub_state_.updateSubscriptionInterest(added_removed.added_,
+  sub->second->sub_state_.updateSubscriptionInterest(added_removed.added_,
                                                        added_removed.removed_);
-  }
   // Tell the server about our change in interest, if any.
   if (sub->second->sub_state_.subscriptionUpdatePending()) {
     trySendDiscoveryRequests();
@@ -225,6 +221,8 @@ void NewGrpcMuxImpl::requestOnDemandUpdate(const std::string& type_url,
   auto sub = subscriptions_.find(type_url);
   RELEASE_ASSERT(sub != subscriptions_.end(),
                  fmt::format("Watch of {} has no subscription to update.", type_url));
+  // VHDS calls here.
+  // FIXME(wangjian.pg 20230710) watcher should also been updated.
   sub->second->sub_state_.updateSubscriptionInterest(for_update, {});
   // Tell the server about our change in interest, if any.
   if (sub->second->sub_state_.subscriptionUpdatePending()) {
@@ -240,10 +238,9 @@ void NewGrpcMuxImpl::removeWatch(const std::string& type_url, Watch* watch) {
   entry->second->watch_map_.removeWatch(watch);
 }
 
-void NewGrpcMuxImpl::addSubscription(const std::string& type_url,
-                                     const bool use_namespace_matching) {
+void NewGrpcMuxImpl::addSubscription(const std::string& type_url) {
   subscriptions_.emplace(type_url, std::make_unique<SubscriptionStuff>(
-                                       type_url, local_info_, use_namespace_matching, dispatcher_,
+                                       type_url, local_info_, dispatcher_,
                                        *config_validators_.get(), xds_config_tracker_));
   subscription_ordering_.emplace_back(type_url);
 }
