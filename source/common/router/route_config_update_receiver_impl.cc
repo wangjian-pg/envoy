@@ -78,7 +78,7 @@ bool RouteConfigUpdateReceiverImpl::onRdsUpdate(const Protobuf::Message& rc,
     // which will require that all virtual hosts be sent again.
     // https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/vhds
     // FIXME(wangjian.pg 20230710), drive into it.
-    if (vhds_configuration_changed_ && !vhds_virtual_hosts_->empty()){
+    if (vhds_configuration_changed_ && vhds_virtual_hosts_ != nullptr){
       vhds_virtual_hosts_->clear();
     }
     if (vhds_virtual_hosts_ != nullptr && !vhds_virtual_hosts_->empty()) {

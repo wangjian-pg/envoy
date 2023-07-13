@@ -51,15 +51,15 @@ VhdsSubscription::VhdsSubscription(RouteConfigUpdatePtr& config_update_info,
 }
 
 void VhdsSubscription::updateOnDemand(const std::string& with_route_config_name_prefix) {
-  // TODO(wangjian.pg 20230710) if domain names already exits, we do not need to updateResourceInterest.
-  on_demand_domains_.insert(with_route_config_name_prefix);
+  auto inserted_ = on_demand_domains_.insert(with_route_config_name_prefix);
   if (!started_){
     subscription_->start({with_route_config_name_prefix});
-    // TODO(wangjian.pg 20230710) insert or emplace
     started_ = true;
     return;
   }
-  subscription_->updateResourceInterest(on_demand_domains_);
+  if (inserted_.second){
+    subscription_->updateResourceInterest(on_demand_domains_);
+  }
   // TODO, we may not need the requestOnDemandUpdate interface
   // keep all the resource names we are interestd in and just call the method
   // subscription_->updateResourceInterested.

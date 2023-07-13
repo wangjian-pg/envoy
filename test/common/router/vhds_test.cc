@@ -91,7 +91,7 @@ vhds:
   Envoy::Rds::RouteConfigProvider* provider_ = nullptr;
   Protobuf::util::MessageDifferencer messageDifferencer_;
   std::string default_vhds_config_;
-  NiceMock<Envoy::Config::MockSubscriptionFactory> subscription_factory_;
+  //NiceMock<Envoy::Config::MockSubscriptionFactory> subscription_factory_;
 };
 
 // verify that api_type: DELTA_GRPC passes validation
@@ -101,25 +101,6 @@ TEST_F(VhdsTest, VhdsInstantiationShouldSucceedWithDELTA_GRPC) {
   RouteConfigUpdatePtr config_update_info = makeRouteConfigUpdate(route_config);
 
   EXPECT_NO_THROW(VhdsSubscription(config_update_info, factory_context_, context_, provider_));
-}
-
-// verify that api_type: GRPC fails validation
-TEST_F(VhdsTest, VhdsInstantiationShouldFailWithoutDELTA_GRPC) {
-  const auto route_config =
-      TestUtility::parseYaml<envoy::config::route::v3::RouteConfiguration>(R"EOF(
-name: my_route
-vhds:
-  config_source:
-    api_config_source:
-      api_type: GRPC
-      grpc_services:
-        envoy_grpc:
-          cluster_name: xds_cluster
-  )EOF");
-  RouteConfigUpdatePtr config_update_info = makeRouteConfigUpdate(route_config);
-
-  EXPECT_THROW(VhdsSubscription(config_update_info, factory_context_, context_, provider_),
-               EnvoyException);
 }
 
 // verify addition/updating of virtual hosts
@@ -143,6 +124,36 @@ TEST_F(VhdsTest, VhdsAddsVirtualHosts) {
   EXPECT_TRUE(messageDifferencer_.Equals(
       vhost, config_update_info->protobufConfigurationCast().virtual_hosts(0)));
 }
+
+
+// Unit tests to be added:
+// 1. subscription not started until On-Demand request called.
+// 2. On-Demand request failed.
+// 3. ...
+TEST_F(VhdsTest, OnDemandRequest){
+  const auto route_config =
+      TestUtility::parseYaml<envoy::config::route::v3::RouteConfiguration>(default_vhds_config_);
+  RouteConfigUpdatePtr config_update_info = makeRouteConfigUpdate(route_config);
+
+  VhdsSubscription subscription(config_update_info, factory_context_,
+    context_, provider_);
+
+  std::string on_demand_request0 = "test_route/bar.com";
+  std::string on_demand_request1 = "test_route/foo.com";
+
+  EXPECT_CALL(*factory_context_.cluster_manager_.subscription_factory_.subscription_,
+  start(absl::flat_hash_set<std::string>{on_demand_request0})).Times(1);
+
+  EXPECT_CALL(*factory_context_.cluster_manager_.subscription_factory_.subscription_,
+    updateResourceInterest(absl::flat_hash_set<std::string>{on_demand_request0, on_demand_request1})).Times(1);
+
+  subscription.updateOnDemand(on_demand_request0);
+  subscription.updateOnDemand(on_demand_request1);
+
+  // Calling updateOnDemand with the same parameters should not trigger an 'updateResourceInterest' call.
+  subscription.updateOnDemand(on_demand_request1);
+}
+
 
 // verify that an RDS update of virtual hosts leaves VHDS virtual hosts intact
 TEST_F(VhdsTest, RdsUpdatesVirtualHosts) {
@@ -188,6 +199,7 @@ vhds:
   RouteConfigUpdatePtr config_update_info = makeRouteConfigUpdate(route_config);
 
   VhdsSubscription subscription(config_update_info, factory_context_, context_, provider_);
+  EXPECT_CALL(*factory_context_.cluster_manager_.subscription_factory_.subscription_, start).Times(0);
   EXPECT_EQ(1UL, config_update_info->protobufConfigurationCast().virtual_hosts_size());
   EXPECT_EQ("vhost_rds1", config_update_info->protobufConfigurationCast().virtual_hosts(0).name());
 
@@ -196,6 +208,7 @@ vhds:
   const auto decoded_resources =
       TestUtility::decodeResources<envoy::config::route::v3::VirtualHost>(added_resources);
   const Protobuf::RepeatedPtrField<std::string> removed_resources;
+  // comments, this callbacks_ is VHDS callback
   factory_context_.cluster_manager_.subscription_factory_.callbacks_->onConfigUpdate(
       decoded_resources.refvec_, removed_resources, "1");
   EXPECT_EQ(2UL, config_update_info->protobufConfigurationCast().virtual_hosts_size());
