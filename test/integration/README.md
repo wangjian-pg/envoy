@@ -78,7 +78,7 @@ An example of modifying `HttpConnectionManager` to change Envoy’s HTTP/1.1 pro
 
 ```c++
 config_helper_.addConfigModifier([&](envoy::extensions::filters::network::http_connection_manager::v3::HttpConnectionManager& hcm) -> void {
-  nvoy::config::core::v3::Http1ProtocolOptions options;
+  envoy::config::core::v3::Http1ProtocolOptions options;
   options.mutable_allow_absolute_url()->set_value(true);
   hcm.mutable_http_protocol_options()->CopyFrom(options);
 };);
